@@ -1,10 +1,22 @@
-import * as React from 'react';
-import * as ReactDOM from 'react-dom';
-import {Component, ReactNode} from 'react';
-import {Wrapper, Header, BottomRightResizeHandle, RightResizeHandle, BottomResizeHandle, ContentWrapper, padding, CloseIcon, Title} from './styled';
-import { InitialPosition, Size, Coords, isSmartPosition } from './domain';
-import { getCordsFromInitialPosition, getBoundaryCoords } from './utils';
-import { Stacker } from './stacker';
+import * as React from "react";
+import * as ReactDOM from "react-dom";
+import { Component, ReactNode } from "react";
+import {
+  Wrapper,
+  Header,
+  BottomRightResizeHandle,
+  RightResizeHandle,
+  BottomResizeHandle,
+  ContentWrapper,
+  padding,
+  CloseIcon,
+  Title,
+  MinimizeIcon,
+  IconGroup
+} from "./styled";
+import { InitialPosition, Size, Coords, isSmartPosition } from "./domain";
+import { getCordsFromInitialPosition, getBoundaryCoords } from "./utils";
+import { Stacker } from "./stacker";
 
 export interface CristalProps {
   children: ReactNode;
@@ -14,9 +26,12 @@ export interface CristalProps {
   isResizable?: boolean;
   isDraggable?: boolean;
   onClose?: () => void;
+  onMinimize?: (isMinimized: boolean) => void;
   onMove?: (state: CristalState) => void;
   onResize?: (state: CristalState) => void;
   className?: string;
+  minHeight: number;
+  minWidth: number;
 }
 
 export interface CristalState {
@@ -25,6 +40,7 @@ export interface CristalState {
   isDragging: boolean;
   isResizingX: boolean;
   isResizingY: boolean;
+  isMinimized: boolean;
   zIndex: number;
   width?: number;
   height?: number;
@@ -37,8 +53,10 @@ export class Cristal extends Component<CristalProps, CristalState> {
   static defaultProps: CristalProps = {
     children: null,
     isResizable: true,
-    isDraggable: true
-  }
+    isDraggable: true,
+    minHeight: 255,
+    minWidth: 400
+  };
 
   state: CristalState = {
     x: padding,
@@ -46,38 +64,39 @@ export class Cristal extends Component<CristalProps, CristalState> {
     isDragging: false,
     isResizingX: false,
     isResizingY: false,
-    zIndex: Stacker.getNextIndex()
-  }
+    zIndex: Stacker.getNextIndex(),
+    isMinimized: false
+  };
 
   componentDidMount() {
-    document.addEventListener('mousemove', this.onMouseMove);
-    document.addEventListener('mouseup', this.onMouseUp);
-    window.addEventListener('resize', this.onWindowResize);
+    document.addEventListener("mousemove", this.onMouseMove);
+    document.addEventListener("mouseup", this.onMouseUp);
+    window.addEventListener("resize", this.onWindowResize);
   }
 
   componentWillUnmount() {
-    document.removeEventListener('mousemove', this.onMouseMove);
-    document.removeEventListener('mouseup', this.onMouseUp);
-    window.removeEventListener('resize', this.onWindowResize);
+    document.removeEventListener("mousemove", this.onMouseMove);
+    document.removeEventListener("mouseup", this.onMouseUp);
+    window.removeEventListener("resize", this.onWindowResize);
   }
 
   // TODO-PERF: debounce
   onWindowResize = () => {
-    const {x, y, width, height} = this.state;
-    const size = width && height ? {width, height} : undefined;
-    const {x: newX, y: newY} = getBoundaryCoords({x, y}, size);
+    const { x, y, width, height } = this.state;
+    const size = width && height ? { width, height } : undefined;
+    const { x: newX, y: newY } = getBoundaryCoords({ x, y }, size);
 
     this.setState({
       x: newX,
       y: newY
     });
-  }
+  };
 
   saveWrapperRef = (el?: Element) => {
     this.childrenElement = el;
     if (!this.childrenElement) return;
 
-    const {initialSize} = this.props;
+    const { initialSize } = this.props;
     let width, height;
 
     if (initialSize) {
@@ -89,12 +108,12 @@ export class Cristal extends Component<CristalProps, CristalState> {
       height = rect.height;
     }
 
-    this.setState({width, height});
-    this.setInitialPosition({width, height});
-  }
+    this.setState({ width, height });
+    this.setInitialPosition({ width, height });
+  };
 
   setInitialPosition = (size: Size) => {
-    const {initialPosition} = this.props;
+    const { initialPosition } = this.props;
     if (!initialPosition) return;
 
     let cords;
@@ -105,76 +124,85 @@ export class Cristal extends Component<CristalProps, CristalState> {
       cords = initialPosition;
     }
 
-    const {x, y} = getBoundaryCoords(cords, size);
+    const { x, y } = getBoundaryCoords(cords, size);
 
-    this.setState({x, y});
-  }
+    this.setState({ x, y });
+  };
 
   saveHeaderRef = (el: Element) => {
     this.headerElement = el;
-  }
+  };
 
   onMouseDown = () => {
-    const {isDraggable} = this.props;
+    const { isDraggable } = this.props;
     if (!isDraggable) return;
 
     this.setState({
       isDragging: true
     });
-  }
+  };
 
   onMouseMove = (e: MouseEvent) => {
-    const {isResizing} = this;
-    const {isDragging, x: currentX, y: currentY, width: currentWidth, height: currentHeight} = this.state;
-    const {movementX, movementY} = e;
-    const {innerWidth, innerHeight} = window;
+    const { isResizing } = this;
+    const {
+      isDragging,
+      x: currentX,
+      y: currentY,
+      width: currentWidth,
+      height: currentHeight
+    } = this.state;
+    const { movementX, movementY } = e;
+    const { innerWidth, innerHeight } = window;
     const newX = currentX + movementX;
     const newY = currentY + movementY;
 
     if (isDragging) {
-      const size = currentWidth && currentHeight ? {width: currentWidth, height: currentHeight} : undefined;
-      const {x, y} = getBoundaryCoords({x: newX, y: newY}, size);
+      const size =
+        currentWidth && currentHeight
+          ? { width: currentWidth, height: currentHeight }
+          : undefined;
+      const { x, y } = getBoundaryCoords({ x: newX, y: newY }, size);
 
       this.setState({ x, y }, this.notifyMove);
-      
+
       return;
     }
 
     if (isResizing) {
-      const {isResizingX, isResizingY} = this.state;
+      const { isResizingX, isResizingY } = this.state;
 
       if (isResizingX) {
         const maxWidth = innerWidth - newX - padding;
         const newWidth = (currentWidth || 0) + movementX;
         const width = newWidth > maxWidth ? currentWidth : newWidth;
-        this.setState({width}, this.notifyResize);
+        this.setState({ width }, this.notifyResize);
       }
 
       if (isResizingY) {
         const newHeight = (currentHeight || 0) + movementY;
-        const maxHeight = innerHeight - newY - padding;  
+        const maxHeight = innerHeight - newY - padding;
         const height = newHeight > maxHeight ? currentHeight : newHeight;
-      
-        this.setState({height}, this.notifyResize);
+
+        this.setState({ height }, this.notifyResize);
       }
     }
-  }
+  };
 
   notifyMove = () => {
-    const {onMove} = this.props;
+    const { onMove } = this.props;
     onMove && onMove(this.state);
-  }
+  };
 
   notifyResize = () => {
-    const {onResize} = this.props;
+    const { onResize } = this.props;
 
     if (onResize) {
       onResize(this.state);
     }
-  }
+  };
 
   get isResizing(): boolean {
-    const {isResizingX, isResizingY} = this.state;
+    const { isResizingX, isResizingY } = this.state;
 
     return isResizingX || isResizingY;
   }
@@ -183,9 +211,15 @@ export class Cristal extends Component<CristalProps, CristalState> {
     this.setState({
       isDragging: false,
       isResizingX: false,
-      isResizingY: false,
+      isResizingY: false
     });
-  }
+  };
+
+  onMinimize = () => {
+    const isMinimized = !this.state.isMinimized;
+    this.setState({ isMinimized: isMinimized });
+    if (this.props.onMinimize) this.props.onMinimize(isMinimized);
+  };
 
   startFullResize = () => {
     // TODO: save cursor before start resizing
@@ -196,71 +230,69 @@ export class Cristal extends Component<CristalProps, CristalState> {
       isResizingX: true,
       isResizingY: true
     });
-  }
+  };
 
-  startXResize = () => this.setState({isResizingX: true})
+  startXResize = () => this.setState({ isResizingX: true });
 
-  startYResize = () => this.setState({isResizingY: true})
+  startYResize = () => this.setState({ isResizingY: true });
 
   get header() {
-    const {onClose, title, isDraggable} = this.props;
+    const { onClose, title, isDraggable } = this.props;
 
     return (
-      <Header isDraggable={isDraggable} innerRef={this.saveHeaderRef} onMouseDown={this.onMouseDown} >
+      <Header
+        isDraggable={isDraggable}
+        innerRef={this.saveHeaderRef}
+        onMouseDown={this.onMouseDown}
+      >
         <Title>{title}</Title>
-        <CloseIcon onClick={onClose} />
+        <IconGroup>
+          <MinimizeIcon onClick={this.onMinimize} />
+          <CloseIcon onClick={onClose} />
+        </IconGroup>
       </Header>
     );
   }
 
   get content() {
-    const {children} = this.props;
+    const { children } = this.props;
 
-    return (
-      <ContentWrapper>
-        {children}
-      </ContentWrapper>
-    );
+    return <ContentWrapper>{children}</ContentWrapper>;
   }
 
   renderResizeHandles = () => {
-    const {isResizable} = this.props;
-    if (!isResizable) return;
+    const { isResizable } = this.props;
+    const { isMinimized } = this.state;
+    if (!isResizable || isMinimized) return;
 
     return [
-      <RightResizeHandle
-        key="right-resize"
-        onMouseDown={this.startXResize}
-      />,
+      <RightResizeHandle key="right-resize" onMouseDown={this.startXResize} />,
       <BottomRightResizeHandle
         key="bottom-right-resize"
         onMouseDown={this.startFullResize}
       />,
-      <BottomResizeHandle
-        key="bottom-resize"
-        onMouseDown={this.startYResize}
-      />,
+      <BottomResizeHandle key="bottom-resize" onMouseDown={this.startYResize} />
     ];
-  }
+  };
 
   changeZIndex = () => {
-    const {zIndex} = this.state;
+    const { zIndex } = this.state;
     this.setState({
       zIndex: Stacker.getNextIndex(zIndex)
     });
-  }
+  };
 
   render() {
-    const {isResizing} = this;
-    const {x, y, width, height, isDragging, zIndex} = this.state;
-    const {className} = this.props;
+    const { isResizing } = this;
+    const { x, y, width, height, isDragging, zIndex } = this.state;
+    const { className, minHeight, minWidth } = this.props;
     const isActive = isDragging || isResizing;
     const style = {
       left: x,
       top: y,
-      width, 
-      height,
-      zIndex
+      width,
+      zIndex,
+      minWidth
     };
     const HeaderComponent = this.header;
     const ContentComponent = this.content;
@@ -268,14 +300,18 @@ export class Cristal extends Component<CristalProps, CristalState> {
     // TODO: use "visibility"|"opacity" to avoid initial position glitch
     return ReactDOM.createPortal(
       <Wrapper
-        style={style}
+        style={{
+          ...style,
+          height: this.state.isMinimized ? 22 : height,
+          minHeight: this.state.isMinimized ? 22 : minHeight
+        }}
         innerRef={this.saveWrapperRef}
         isActive={isActive}
         className={className}
         onMouseDown={this.changeZIndex}
       >
         {HeaderComponent}
-        {ContentComponent}
+        {!this.state.isMinimized && ContentComponent}
         {this.renderResizeHandles()}
       </Wrapper>,
       document.body
